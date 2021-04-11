@@ -116,7 +116,7 @@ fun evaluateInfixExpression(tokens: MutableList<ExpressionToken>): BigInteger {
     val tmpStack = mutableListOf<BigInteger>()
     for (token in tokens) {
         when (token) {
-            is VariableNameTk -> tmpStack.add(tokenToValueOfVariable(token))
+            is VariableNameTk -> tmpStack.add(tokenToValueOfVariable(token) ?: throw UnknownVariable())
             is BigIntConstantTk -> tmpStack.add(token.value)
             is OperatorTk -> tmpStack.add(applyUnaryOrBinaryOperator(tmpStack, token))
         }
@@ -124,9 +124,8 @@ fun evaluateInfixExpression(tokens: MutableList<ExpressionToken>): BigInteger {
     return tmpStack.removeLast()
 }
 
-@Throws(UnknownVariable::class)
-fun tokenToValueOfVariable(token: VariableNameTk): BigInteger =
-    nameToVariable[token.value]?.value ?: throw UnknownVariable()
+fun tokenToValueOfVariable(token: VariableNameTk): BigInteger? =
+    nameToVariable[token.value]?.value
 
 // get left and right operands from the stack
 fun pop2Operands(stack: MutableList<BigInteger>): List<BigInteger?> =
