@@ -21,7 +21,7 @@ data class OperatorTk(val value: String) : ExpressionToken() {
         else -> 0
     }
 
-    fun isHigherPrecedence(other: OperatorTk) = priority > other.priority
+    infix fun isHigherPrecedence(other: OperatorTk) = priority > other.priority
 }
 
 data class VariableNameTk(val value: String) : ExpressionToken()
@@ -172,7 +172,7 @@ fun infixToPostfix(tokens: MutableList<ExpressionToken>): MutableList<Expression
                 resultStack.addAll(
                     popAllMatchingPredicate(
                         stackOfParenthesizedGroupsOfOperators.last()
-                    ) { !token.isHigherPrecedence(it) })
+                    ) { !(token isHigherPrecedence it) })
                 stackOfParenthesizedGroupsOfOperators.last().add(token)
             }
             is RoundBracketTk -> {
