@@ -21,7 +21,7 @@ data class OperatorTk(val value: String) : ExpressionToken() {
         else -> 0
     }
 
-    infix fun isHigherPrecedence(other: OperatorTk) = priority > other.priority
+    infix fun isHigherPriority(other: OperatorTk) = priority > other.priority
 }
 
 data class VariableNameTk(val value: String) : ExpressionToken()
@@ -113,29 +113,23 @@ fun parseAssignment(line: String): Assignment? {
 
 @Throws(UnknownVariable::class, UnknownBinaryOperator::class)
 fun evaluateInfixExpression(tokens: MutableList<ExpressionToken>): BigInteger {
-    val tmpStack = mutableListOf<BigInteger>()
+    val operandsStack = mutableListOf<BigInteger>()
     for (token in tokens) {
         when (token) {
-            is VariableNameTk -> tmpStack.add(tokenToValueOfVariable(token) ?: throw UnknownVariable())
-            is BigIntConstantTk -> tmpStack.add(token.value)
-            is OperatorTk -> tmpStack.add(applyUnaryOrBinaryOperator(tmpStack, token))
+            is VariableNameTk -> operandsStack.add(valueOfVariable(token.value) ?: throw UnknownVariable())
+            is BigIntConstantTk -> operandsStack.add(token.value)
+            is OperatorTk -> operandsStack.add(applyUnaryOrBinaryOperator(operandsStack.removeLast(2), token))
         }
     }
-    return tmpStack.removeLast()
+    return operandsStack.removeLast()
 }
 
-fun tokenToValueOfVariable(token: VariableNameTk): BigInteger? =
-    nameToVariable[token.value]?.value
-
-// get left and right operands from the stack
-fun pop2Operands(stack: MutableList<BigInteger>): List<BigInteger?> =
-    Array(2) { stack.removeLastOrNull() }.reversed()
+fun valueOfVariable(variableName: String): BigInteger? = nameToVariable[variableName]?.value
 
 @Throws(UnknownBinaryOperator::class)
-fun applyUnaryOrBinaryOperator(infixElementsStack: MutableList<BigInteger>, operator: OperatorTk): BigInteger {
-    val (leftOperand, rightOperand) = pop2Operands(infixElementsStack)
-    return if (leftOperand != null) applyBinaryOperator(leftOperand, rightOperand!!, operator)
-    else applyUnaryOperator(rightOperand!!, operator)
+fun applyUnaryOrBinaryOperator(operands: List<BigInteger>, operator: OperatorTk): BigInteger {
+    return if (operands.size == 2) applyBinaryOperator(operands[0], operands[1], operator)
+    else applyUnaryOperator(operands[0], operator)
 }
 
 fun applyUnaryOperator(value: BigInteger, token: OperatorTk): BigInteger =
@@ -169,11 +163,11 @@ fun infixToPostfix(tokens: MutableList<ExpressionToken>): MutableList<Expression
             is VariableNameTk -> resultStack.add(token)
             is BigIntConstantTk -> resultStack.add(token)
             is OperatorTk -> {
-                resultStack.addAll(
-                    popAllMatchingPredicate(
-                        stackOfParenthesizedGroupsOfOperators.last()
-                    ) { !(token isHigherPrecedence it) })
-                stackOfParenthesizedGroupsOfOperators.last().add(token)
+                val operators = stackOfParenthesizedGroupsOfOperators.last()
+                val higherPriorityOperators = operators.takeLastWhile { !(token isHigherPriority it) }
+                resultStack.addAll(higherPriorityOperators.reversed())
+                repeat(higherPriorityOperators.size) { operators.removeLast() }
+                operators.add(token)
             }
             is RoundBracketTk -> {
                 if (token.value == '(') {
@@ -189,16 +183,6 @@ fun infixToPostfix(tokens: MutableList<ExpressionToken>): MutableList<Expression
     if (openingBracketsAmount != 0) throw NoMatchingBracket()
     resultStack.addAll(stackOfParenthesizedGroupsOfOperators.first().reversed())
     return resultStack
-}
-
-fun <T> popAllMatchingPredicate(stack: MutableList<T>, predicate: (T) -> Boolean): MutableList<T> {
-    var lastElement = stack.lastOrNull()
-    val poppedTokens: MutableList<T> = mutableListOf()
-    while (lastElement != null && predicate(lastElement)) {
-        poppedTokens.add(stack.removeLast())
-        lastElement = stack.lastOrNull()
-    }
-    return poppedTokens
 }
 
 fun tokenize(expression: String): MutableList<ExpressionToken> {
@@ -258,6 +242,12 @@ fun findIntWithoutSign(s: String): MatchResult? {
     val startsWithDigit = s.isNotBlank() && s[0].isDigit()
     return if (startsWithDigit) Regex(intPattern).find(s)
     else null
+}
+
+private fun <E> MutableList<E>.removeLast(amount: Int): List<E> {
+    val lastElements = this.takeLast(amount)
+    repeat(lastElements.size) { this.removeLast() }
+    return lastElements
 }
 
 fun isIdentifier(str: String): Boolean = ID_REGEX.matches(str)
